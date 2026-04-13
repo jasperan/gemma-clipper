@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -316,7 +315,6 @@ def scenes(
 
 async def _scenes_impl(source: str, threshold: float, output_json: bool) -> None:
     from gemma_clipper.core.scenes import detect_scenes
-    from gemma_clipper.core.video import probe_video
     from gemma_clipper.core.youtube import download_video
 
     video_path: Path
@@ -421,8 +419,6 @@ def _display_clips_from_json(path: Path) -> None:
 
 async def _display_clips_from_db(job_id: str) -> None:
     """Query the database for clips by job ID."""
-    import aiosqlite
-
     from gemma_clipper.db import get_db
 
     try:

@@ -271,28 +271,34 @@ class TestYouTube:
 
 class TestGemmaAI:
     def test_gemma_health(self):
-        client = GemmaClient()
-        healthy = asyncio.run(client.health_check())
+        async def _check():
+            async with GemmaClient() as client:
+                return await client.health_check()
+        healthy = asyncio.run(_check())
         if not healthy:
             pytest.skip("vLLM not reachable, skipping AI tests")
         print("\n  vLLM is reachable!")
 
     def test_analyze_chunk(self):
-        client = GemmaClient()
-        if not asyncio.run(client.health_check()):
-            pytest.skip("vLLM not reachable")
-
-        path = _require_video()
-        segment_path = SETTINGS.output_dir / "ai_test_segment.mp4"
-
         async def _test():
-            seg = await extract_segment(path, 30.0, 40.0, segment_path, max_width=320, crf=30)
-            video_bytes = seg.read_bytes()
-            from gemma_clipper.ai.prompts import SCENE_ANALYSIS_PROMPT
-            result = await client.analyze_video_chunk(video_bytes, SCENE_ANALYSIS_PROMPT)
-            return result
+            async with GemmaClient() as client:
+                if not await client.health_check():
+                    return None
+                path = _require_video()
+                segment_path = SETTINGS.output_dir / "ai_test_segment.mp4"
+                seg = await extract_segment(path, 30.0, 40.0, segment_path, max_width=320, crf=30)
+                video_bytes = seg.read_bytes()
+                from gemma_clipper.ai.prompts import SCENE_ANALYSIS_PROMPT
+                return await client.analyze_video_chunk(video_bytes, SCENE_ANALYSIS_PROMPT)
 
-        result = asyncio.run(_test())
+        try:
+            result = asyncio.run(_test())
+        except RuntimeError as e:
+            if "vLLM request failed" in str(e):
+                pytest.skip(f"vLLM model not serving: {e}")
+            raise
+        if result is None:
+            pytest.skip("vLLM not reachable")
         assert len(result) > 10, "Should get a non-trivial response from Gemma"
         print(f"\n  Gemma response length: {len(result)} chars")
         print(f"  First 200 chars: {result[:200]}")
