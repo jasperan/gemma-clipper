@@ -28,7 +28,7 @@
   </tr>
   <tr>
     <td align="center"><strong>Test Results</strong><br><img src="docs/slides/06-tests.jpg" width="400"/></td>
-    <td align="center"><strong>Full slide deck</strong><br><a href="docs/slides/gemma-clipper-slides.html">Open the interactive 25-slide presentation</a></td>
+    <td align="center"><strong>Full slide deck</strong><br><a href="https://jasperan.github.io/gemma-clipper/">Open the interactive 25-slide presentation</a></td>
   </tr>
 </table>
 
