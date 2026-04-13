@@ -8,6 +8,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from gemma_clipper.core._subprocess import run_cmd
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,14 +83,7 @@ def _build_vf(opts: ExportOptions, duration: float) -> str:
 
 async def _run_ffmpeg(cmd: list[str]) -> None:
     """Execute an ffmpeg command, raising on failure."""
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg failed ({proc.returncode}):\n{stderr.decode(errors='replace')}"
-        )
+    await run_cmd(*cmd)
 
 
 # ---------------------------------------------------------------------------
@@ -138,19 +133,28 @@ async def export_batch(
     output_dir: Path,
     options: ExportOptions | None = None,
 ) -> list[Path]:
-    """Export multiple clips sequentially, returning their paths."""
+    """Export multiple clips concurrently (up to 4 at a time), returning their paths."""
     opts = options or ExportOptions()
     output_dir.mkdir(parents=True, exist_ok=True)
     ext = opts.format if opts.format != "gif" else "gif"
 
-    paths: list[Path] = []
-    for idx, clip in enumerate(clips):
-        label = clip.label or f"clip_{idx:04d}"
-        out = output_dir / f"{label}.{ext}"
-        await export_clip(source, clip.start_time, clip.end_time, out, opts)
-        paths.append(out)
+    sem = asyncio.Semaphore(4)
 
-    return paths
+    async def _limited_export(clip_source: Path, start: float, end: float, out: Path, clip_opts: ExportOptions) -> Path:
+        async with sem:
+            return await export_clip(clip_source, start, end, out, clip_opts)
+
+    results = await asyncio.gather(*[
+        _limited_export(
+            source,
+            clip.start_time,
+            clip.end_time,
+            output_dir / f"{clip.label or f'clip_{idx:04d}'}.{ext}",
+            opts,
+        )
+        for idx, clip in enumerate(clips)
+    ])
+    return list(results)
 
 
 async def create_compilation(

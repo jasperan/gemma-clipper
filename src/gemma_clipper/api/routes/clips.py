@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from pathlib import Path
@@ -11,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from gemma_clipper.api.models import Clip, ExportRequest, Scene
+from gemma_clipper.api.routes._helpers import clip_from_row, scene_from_row
 from gemma_clipper.config import settings
 from gemma_clipper.core.export import ExportOptions, export_clip
 from gemma_clipper.db import get_db
@@ -22,41 +22,6 @@ router = APIRouter(prefix="/api/clips", tags=["clips"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _clip_from_row(row) -> Clip:
-    """Build a Clip from a database row."""
-    source_ids = json.loads(row["source_scene_ids_json"]) if row["source_scene_ids_json"] else []
-    return Clip(
-        id=row["id"],
-        job_id=row["job_id"],
-        start_time=row["start_time"],
-        end_time=row["end_time"],
-        duration=row["duration"],
-        source_scene_ids=source_ids,
-        reason=row["reason"] or "",
-        interest_score=row["interest_score"] or 0.0,
-        exported_path=row["exported_path"],
-        thumbnail_path=row["thumbnail_path"],
-    )
-
-
-def _scene_from_row(row) -> Scene:
-    """Build a Scene from a database row."""
-    tags = json.loads(row["tags_json"]) if row["tags_json"] else []
-    return Scene(
-        id=row["id"],
-        start_time=row["start_time"],
-        end_time=row["end_time"],
-        duration=row["duration"],
-        thumbnail_path=row["thumbnail_path"],
-        description=row["description"] or "",
-        interest_score=row["interest_score"] or 0.0,
-        tags=tags,
-        has_speech=bool(row["has_speech"]),
-        has_music=bool(row["has_music"]),
-        is_silent=bool(row["is_silent"]),
-    )
 
 
 async def _get_job_or_404(job_id: str):
@@ -91,7 +56,7 @@ async def list_clips(job_id: str) -> list[Clip]:
     finally:
         await db.close()
 
-    return [_clip_from_row(r) for r in rows]
+    return [clip_from_row(r) for r in rows]
 
 
 @router.post("/{job_id}/export", response_model=list[str])
@@ -176,7 +141,7 @@ async def list_scenes(job_id: str) -> list[Scene]:
     finally:
         await db.close()
 
-    return [_scene_from_row(r) for r in rows]
+    return [scene_from_row(r) for r in rows]
 
 
 @router.post("/{job_id}/custom", response_model=Clip, status_code=201)
@@ -209,7 +174,7 @@ async def create_custom_clip(
     finally:
         await db.close()
 
-    return _clip_from_row(row)
+    return clip_from_row(row)
 
 
 @router.get("/download/{clip_id}", response_model=None)

@@ -66,8 +66,24 @@ async def analyze_chunk(
     """Send one chunk to Gemma for scene analysis and optional highlight detection."""
     video_bytes = chunk_path.read_bytes()
 
-    # Scene analysis
-    scene_data = await _request_scene_analysis(client, video_bytes)
+    highlight_prompt = format_prompt(
+        HIGHLIGHT_DETECTION_PROMPT,
+        total_duration=total_duration,
+        chunk_index=chunk_index + 1,
+        total_chunks=total_chunks,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    # Run scene analysis and highlight detection in parallel.
+    if include_highlights:
+        scene_data, highlight_data = await asyncio.gather(
+            _analyze_with_retry(client, video_bytes, SCENE_ANALYSIS_PROMPT, "scene analysis"),
+            _analyze_with_retry(client, video_bytes, highlight_prompt, "highlight detection"),
+        )
+    else:
+        scene_data = await _analyze_with_retry(client, video_bytes, SCENE_ANALYSIS_PROMPT, "scene analysis")
+        highlight_data = {}
 
     result = ChunkAnalysis(
         chunk_index=chunk_index,
@@ -78,22 +94,10 @@ async def analyze_chunk(
         mood=scene_data.get("mood", ""),
         energy_level=_clamp(scene_data.get("energy_level", 0.0)),
         audio_type=scene_data.get("audio_type", "silent"),
+        interest_score=_clamp(highlight_data.get("interest_score", 0.0)),
+        tags=highlight_data.get("tags", []),
+        suggested_clips=highlight_data.get("suggested_clip_boundaries", []),
     )
-
-    # Highlight detection
-    if include_highlights:
-        highlight_data = await _request_highlight_detection(
-            client,
-            video_bytes,
-            chunk_index=chunk_index,
-            total_chunks=total_chunks,
-            start_time=start_time,
-            end_time=end_time,
-            total_duration=total_duration,
-        )
-        result.interest_score = _clamp(highlight_data.get("interest_score", 0.0))
-        result.tags = highlight_data.get("tags", [])
-        result.suggested_clips = highlight_data.get("suggested_clip_boundaries", [])
 
     return result
 
@@ -153,45 +157,18 @@ async def analyze_video(
 # -- internal helpers --
 
 
-async def _request_scene_analysis(client: GemmaClient, video_bytes: bytes) -> dict:
-    """Request scene analysis with retry on parse failure."""
-    for attempt in range(2):
-        raw = await client.analyze_video_chunk(video_bytes, SCENE_ANALYSIS_PROMPT)
-        try:
-            data = extract_json(raw)
-            if isinstance(data, dict):
-                return data
-        except (ValueError, TypeError):
-            logger.warning("Scene analysis JSON parse failed (attempt %d)", attempt + 1)
-    return {}
-
-
-async def _request_highlight_detection(
-    client: GemmaClient,
-    video_bytes: bytes,
-    chunk_index: int,
-    total_chunks: int,
-    start_time: float,
-    end_time: float,
-    total_duration: float,
+async def _analyze_with_retry(
+    client: GemmaClient, video_bytes: bytes, prompt: str, label: str,
 ) -> dict:
-    """Request highlight detection with retry on parse failure."""
-    prompt = format_prompt(
-        HIGHLIGHT_DETECTION_PROMPT,
-        total_duration=total_duration,
-        chunk_index=chunk_index + 1,
-        total_chunks=total_chunks,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    """Call Gemma with video bytes, retry once on JSON parse failure."""
     for attempt in range(2):
-        raw = await client.analyze_video_chunk(video_bytes, prompt)
         try:
+            raw = await client.analyze_video_chunk(video_bytes, prompt)
             data = extract_json(raw)
             if isinstance(data, dict):
                 return data
-        except (ValueError, TypeError):
-            logger.warning("Highlight detection JSON parse failed (attempt %d)", attempt + 1)
+        except Exception:
+            logger.warning("Failed to parse %s response (attempt %d)", label, attempt + 1)
     return {}
 
 

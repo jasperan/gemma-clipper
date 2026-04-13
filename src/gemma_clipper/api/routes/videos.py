@@ -11,75 +11,17 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from gemma_clipper.api.models import (
-    Clip,
     JobDetailResponse,
     JobResponse,
     JobStatus,
-    Scene,
     YouTubeRequest,
 )
+from gemma_clipper.api.routes._helpers import clip_from_row, job_from_row, scene_from_row
 from gemma_clipper.config import settings
 from gemma_clipper.db import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/videos", tags=["videos"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _job_from_row(row) -> JobResponse:
-    """Build a JobResponse from a database row."""
-    return JobResponse(
-        id=row["id"],
-        status=JobStatus(row["status"]),
-        source_type=row["source_type"],
-        source_name=row["source_name"],
-        video_duration=row["video_duration"],
-        scenes_found=row["scenes_found"] or 0,
-        clips_generated=row["clips_generated"] or 0,
-        progress=row["progress"] or 0.0,
-        error=row["error"],
-        created_at=row["created_at"],
-        updated_at=row["updated_at"],
-    )
-
-
-def _scene_from_row(row) -> Scene:
-    """Build a Scene from a database row."""
-    tags = json.loads(row["tags_json"]) if row["tags_json"] else []
-    return Scene(
-        id=row["id"],
-        start_time=row["start_time"],
-        end_time=row["end_time"],
-        duration=row["duration"],
-        thumbnail_path=row["thumbnail_path"],
-        description=row["description"] or "",
-        interest_score=row["interest_score"] or 0.0,
-        tags=tags,
-        has_speech=bool(row["has_speech"]),
-        has_music=bool(row["has_music"]),
-        is_silent=bool(row["is_silent"]),
-    )
-
-
-def _clip_from_row(row) -> Clip:
-    """Build a Clip from a database row."""
-    source_ids = json.loads(row["source_scene_ids_json"]) if row["source_scene_ids_json"] else []
-    return Clip(
-        id=row["id"],
-        job_id=row["job_id"],
-        start_time=row["start_time"],
-        end_time=row["end_time"],
-        duration=row["duration"],
-        source_scene_ids=source_ids,
-        reason=row["reason"] or "",
-        interest_score=row["interest_score"] or 0.0,
-        exported_path=row["exported_path"],
-        thumbnail_path=row["thumbnail_path"],
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +69,7 @@ async def upload_video(
     finally:
         await db.close()
 
-    return _job_from_row(job_row)
+    return job_from_row(job_row)
 
 
 @router.post("/youtube", response_model=JobResponse, status_code=201)
@@ -156,7 +98,7 @@ async def import_youtube(req: YouTubeRequest) -> JobResponse:
     finally:
         await db.close()
 
-    return _job_from_row(job_row)
+    return job_from_row(job_row)
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)
@@ -181,11 +123,11 @@ async def get_job(job_id: str) -> JobDetailResponse:
     finally:
         await db.close()
 
-    base = _job_from_row(job_row)
+    base = job_from_row(job_row)
     return JobDetailResponse(
         **base.model_dump(),
-        scenes=[_scene_from_row(r) for r in scene_rows],
-        clips=[_clip_from_row(r) for r in clip_rows],
+        scenes=[scene_from_row(r) for r in scene_rows],
+        clips=[clip_from_row(r) for r in clip_rows],
     )
 
 
@@ -204,7 +146,7 @@ async def list_jobs(status: str | None = Query(default=None)) -> list[JobRespons
     finally:
         await db.close()
 
-    return [_job_from_row(r) for r in rows]
+    return [job_from_row(r) for r in rows]
 
 
 @router.delete("/{job_id}", status_code=204)

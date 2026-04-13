@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from gemma_clipper.core._subprocess import run_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -157,13 +158,5 @@ async def burn_captions(
         "-c:a", "copy",
         str(output),
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg caption burn failed ({proc.returncode}):\n"
-            f"{stderr.decode(errors='replace')}"
-        )
+    await run_cmd(*cmd)
     return output

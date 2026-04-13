@@ -58,19 +58,29 @@ def _parse_chapters(info: dict) -> list[Chapter]:
     return chapters
 
 
+_cached_cookie_opts: dict | None = None
+
+
 def _cookie_opts() -> dict:
     """Build cookie options if a cookies file or browser is available."""
+    global _cached_cookie_opts
+    if _cached_cookie_opts is not None:
+        return _cached_cookie_opts
+
     cookie_file = Path("cookies.txt")
     if cookie_file.exists():
-        return {"cookiefile": str(cookie_file)}
+        _cached_cookie_opts = {"cookiefile": str(cookie_file)}
+        return _cached_cookie_opts
     # Try common browser cookie sources (works on desktop, not headless servers)
     for browser in ("chrome", "firefox", "brave", "edge"):
         try:
             yt_dlp.cookies.extract_cookies_from_browser(browser)
-            return {"cookiesfrombrowser": (browser,)}
+            _cached_cookie_opts = {"cookiesfrombrowser": (browser,)}
+            return _cached_cookie_opts
         except Exception:
             continue
-    return {}
+    _cached_cookie_opts = {}
+    return _cached_cookie_opts
 
 
 async def get_video_info(url: str) -> YouTubeInfo:

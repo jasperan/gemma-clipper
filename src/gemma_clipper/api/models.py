@@ -30,6 +30,11 @@ class AspectRatio(str, enum.Enum):
     SQUARE = "1:1"
 
 
+class SourceType(str, enum.Enum):
+    UPLOAD = "upload"
+    YOUTUBE = "youtube"
+
+
 # --- Requests ---
 
 
@@ -94,7 +99,7 @@ class Clip(BaseModel):
 class JobResponse(BaseModel):
     id: str
     status: JobStatus
-    source_type: str  # "upload" or "youtube"
+    source_type: SourceType
     source_name: str
     video_duration: float | None = None
     scenes_found: int = 0

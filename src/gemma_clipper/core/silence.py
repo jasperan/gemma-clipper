@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from gemma_clipper.core._subprocess import run_cmd
 from gemma_clipper.core.video import probe_video
 
 logger = logging.getLogger(__name__)
@@ -44,10 +44,8 @@ async def detect_silence(
         "-f", "null",
         "-",
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    _, stderr = await proc.communicate()
+    # silencedetect always exits 0; stderr contains the detection output.
+    _, stderr = await run_cmd(*cmd)
 
     return _parse_silence_output(stderr.decode(errors="replace"))
 
@@ -135,15 +133,7 @@ async def remove_silence(
         "-c:a", "aac",
         str(output),
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg silence removal failed ({proc.returncode}):\n"
-            f"{stderr.decode(errors='replace')}"
-        )
+    await run_cmd(*cmd)
     return output
 
 

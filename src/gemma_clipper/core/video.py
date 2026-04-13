@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+
+from gemma_clipper.core._subprocess import run_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +27,6 @@ class VideoMetadata:
     filesize_mb: float
 
 
-async def _run(cmd: list[str]) -> tuple[bytes, bytes]:
-    """Run a subprocess and return (stdout, stderr). Raises on non-zero exit."""
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Command failed ({proc.returncode}): {' '.join(cmd)}\n{stderr.decode(errors='replace')}"
-        )
-    return stdout, stderr
-
-
 async def probe_video(path: Path) -> VideoMetadata:
     """Run ffprobe on *path* and return structured metadata."""
     cmd = [
@@ -49,7 +37,7 @@ async def probe_video(path: Path) -> VideoMetadata:
         "-show_streams",
         str(path),
     ]
-    stdout, _ = await _run(cmd)
+    stdout, _ = await run_cmd(*cmd)
     info = json.loads(stdout)
 
     video_stream: dict | None = None
@@ -112,7 +100,7 @@ async def extract_segment(
         "-ac", "1",
         str(output),
     ]
-    await _run(cmd)
+    await run_cmd(*cmd)
     return output
 
 
@@ -126,7 +114,7 @@ async def extract_frame(source: Path, timestamp: float, output: Path) -> Path:
         "-q:v", "2",
         str(output),
     ]
-    await _run(cmd)
+    await run_cmd(*cmd)
     return output
 
 
@@ -141,7 +129,7 @@ async def get_keyframes(source: Path) -> list[float]:
         "-of", "csv=p=0",
         str(source),
     ]
-    stdout, _ = await _run(cmd)
+    stdout, _ = await run_cmd(*cmd)
     timestamps: list[float] = []
     for line in stdout.decode().strip().splitlines():
         line = line.strip()

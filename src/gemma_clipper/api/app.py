@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import shutil
 from contextlib import asynccontextmanager
@@ -22,6 +23,11 @@ from gemma_clipper.db import init_db
 from gemma_clipper.workers.pipeline import start_worker
 
 logger = logging.getLogger(__name__)
+
+
+@functools.cache
+def _ffmpeg_available() -> bool:
+    return shutil.which("ffmpeg") is not None
 
 
 @asynccontextmanager
@@ -93,7 +99,7 @@ async def health() -> HealthResponse:
         await client.close()
 
     # Check ffmpeg
-    ffmpeg_ok = shutil.which("ffmpeg") is not None
+    ffmpeg_ok = _ffmpeg_available()
 
     return HealthResponse(
         status="ok" if (vllm_ok and ffmpeg_ok) else "degraded",
