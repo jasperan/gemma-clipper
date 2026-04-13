@@ -58,7 +58,7 @@ async def detect_scenes(
             score = float(score_match.group(1)) if score_match else threshold
             timestamps.append((pts, score))
 
-    return _boundaries_from_timestamps(timestamps, video_path)
+    return await _boundaries_from_timestamps(timestamps, video_path)
 
 
 async def detect_scenes_with_keyframes(

@@ -58,12 +58,28 @@ def _parse_chapters(info: dict) -> list[Chapter]:
     return chapters
 
 
+def _cookie_opts() -> dict:
+    """Build cookie options if a cookies file or browser is available."""
+    cookie_file = Path("cookies.txt")
+    if cookie_file.exists():
+        return {"cookiefile": str(cookie_file)}
+    # Try common browser cookie sources (works on desktop, not headless servers)
+    for browser in ("chrome", "firefox", "brave", "edge"):
+        try:
+            yt_dlp.cookies.extract_cookies_from_browser(browser)
+            return {"cookiesfrombrowser": (browser,)}
+        except Exception:
+            continue
+    return {}
+
+
 async def get_video_info(url: str) -> YouTubeInfo:
     """Fetch video metadata without downloading."""
     opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        **_cookie_opts(),
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info: dict = ydl.extract_info(url, download=False)  # type: ignore[assignment]
@@ -94,6 +110,7 @@ async def download_video(
         "outtmpl": template,
         "quiet": True,
         "no_warnings": True,
+        **_cookie_opts(),
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info: dict = ydl.extract_info(url, download=True)  # type: ignore[assignment]
