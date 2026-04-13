@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gemma-clipper — AI Video Clipping with Gemma 4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Fragment+Mono:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'Bricolage Grotesque', system-ui, sans-serif;
+    --font-mono: 'Fragment Mono', 'SF Mono', Consolas, monospace;
+    --bg: #141210;
+    --surface: #1c1a17;
+    --surface2: #242220;
+    --surface-elevated: #2a2826;
+    --border: rgba(200, 180, 140, 0.08);
+    --border-bright: rgba(200, 180, 140, 0.18);
+    --text: #e8e2d4;
+    --text-dim: #8a8478;
+    --accent: #d97706;
+    --accent-dim: rgba(217, 119, 6, 0.12);
+    --green: #059669;
+    --green-dim: rgba(5, 150, 105, 0.12);
+    --blue: #0891b2;
+    --blue-dim: rgba(8, 145, 178, 0.12);
+    --red: #dc2626;
+    --red-dim: rgba(220, 38, 38, 0.10);
+    --code-bg: #0e0d0b;
+    --code-text: #d4cec0;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #faf7f2;
+      --surface: #ffffff;
+      --surface2: #f5f0e6;
+      --surface-elevated: #fffdf5;
+      --border: rgba(30, 25, 15, 0.08);
+      --border-bright: rgba(30, 25, 15, 0.16);
+      --text: #1a1814;
+      --text-dim: #7a7468;
+      --accent: #b45309;
+      --accent-dim: rgba(180, 83, 9, 0.08);
+      --green: #047857;
+      --green-dim: rgba(4, 120, 87, 0.08);
+      --blue: #0e7490;
+      --blue-dim: rgba(14, 116, 144, 0.08);
+      --red: #b91c1c;
+      --red-dim: rgba(185, 28, 28, 0.08);
+      --code-bg: #2a2520;
+      --code-text: #e8e2d4;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--text);
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .deck {
+    height: 100dvh;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .slide {
+    height: 100dvh;
+    scroll-snap-align: start;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(40px, 6vh, 80px) clamp(40px, 8vw, 120px);
+    isolation: isolate;
+    opacity: 0;
+    transform: translateY(40px) scale(0.98);
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .slide.visible { opacity: 1; transform: none; }
+
+  .slide .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .slide.visible .reveal { opacity: 1; transform: none; }
+  .slide.visible .reveal:nth-child(1) { transition-delay: 0.1s; }
+  .slide.visible .reveal:nth-child(2) { transition-delay: 0.2s; }
+  .slide.visible .reveal:nth-child(3) { transition-delay: 0.3s; }
+  .slide.visible .reveal:nth-child(4) { transition-delay: 0.4s; }
+  .slide.visible .reveal:nth-child(5) { transition-delay: 0.5s; }
+  .slide.visible .reveal:nth-child(6) { transition-delay: 0.6s; }
+  .slide.visible .reveal:nth-child(7) { transition-delay: 0.7s; }
+  .slide.visible .reveal:nth-child(8) { transition-delay: 0.8s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide, .slide .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  }
+
+  /* NAV */
+  .deck-progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); z-index: 100; transition: width 0.3s ease; pointer-events: none; }
+  .deck-dots { position: fixed; right: clamp(12px, 2vw, 24px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; padding: 8px; background: color-mix(in srgb, var(--bg) 60%, transparent 40%); border-radius: 20px; backdrop-filter: blur(4px); }
+  .deck-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); opacity: 0.3; border: none; padding: 0; cursor: pointer; transition: opacity 0.2s, transform 0.2s; }
+  .deck-dot:hover { opacity: 0.6; }
+  .deck-dot.active { opacity: 1; transform: scale(1.5); background: var(--accent); }
+  .deck-counter { position: fixed; bottom: clamp(12px, 2vh, 24px); right: clamp(12px, 2vw, 24px); font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); z-index: 100; font-variant-numeric: tabular-nums; }
+  .deck-hints { position: fixed; bottom: clamp(12px, 2vh, 24px); left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); opacity: 0.6; z-index: 100; transition: opacity 0.5s; white-space: nowrap; }
+  .deck-hints.faded { opacity: 0; pointer-events: none; }
+
+  /* TYPOGRAPHY */
+  .slide__display { font-size: clamp(48px, 10vw, 120px); font-weight: 800; letter-spacing: -3px; line-height: 0.95; text-wrap: balance; }
+  .slide__heading { font-size: clamp(28px, 5vw, 48px); font-weight: 700; letter-spacing: -1px; line-height: 1.15; text-wrap: balance; }
+  .slide__subheading { font-size: clamp(22px, 3.5vw, 36px); font-weight: 600; letter-spacing: -0.5px; line-height: 1.2; }
+  .slide__body { font-size: clamp(16px, 2.2vw, 22px); line-height: 1.6; text-wrap: pretty; color: var(--text-dim); }
+  .slide__label { font-family: var(--font-mono); font-size: clamp(10px, 1.2vw, 14px); font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); }
+  .slide__subtitle { font-family: var(--font-mono); font-size: clamp(14px, 1.8vw, 20px); color: var(--text-dim); letter-spacing: 0.5px; }
+
+  /* DIVIDER */
+  .slide--divider { align-items: flex-start; }
+  .divider__num { font-size: clamp(100px, 20vw, 240px); font-weight: 200; color: var(--accent); opacity: 0.15; line-height: 0.85; position: absolute; right: 8vw; top: 50%; transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+
+  /* SPLIT */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 6vw, 80px); align-items: center; width: 100%; }
+  .split--60-40 { grid-template-columns: 3fr 2fr; }
+  .split--40-60 { grid-template-columns: 2fr 3fr; }
+
+  /* CARDS */
+  .ve-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; }
+  .ve-card--elevated { background: var(--surface-elevated); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .ve-card--accent { border-left: 3px solid var(--accent); }
+  .ve-card--green { border-left: 3px solid var(--green); }
+  .ve-card--blue { border-left: 3px solid var(--blue); }
+  .ve-card__label { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .ve-card__label::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .ve-card__title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .ve-card__body { font-size: 15px; line-height: 1.5; color: var(--text-dim); }
+
+  /* GRID */
+  .card-grid { display: grid; gap: 16px; width: 100%; }
+  .card-grid--2 { grid-template-columns: 1fr 1fr; }
+  .card-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card-grid--4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  /* TABLE */
+  .slide-table { width: 100%; border-collapse: collapse; font-size: clamp(13px, 1.5vw, 16px); }
+  .slide-table th { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); text-align: left; padding: 10px 16px; border-bottom: 2px solid var(--border-bright); font-weight: 600; }
+  .slide-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .slide-table tr:hover td { background: var(--accent-dim); }
+  .slide-table code { font-family: var(--font-mono); font-size: 0.9em; background: var(--surface2); padding: 2px 6px; border-radius: 4px; }
+
+  /* CODE */
+  .code-block { font-family: var(--font-mono); font-size: clamp(13px, 1.5vw, 16px); line-height: 1.6; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; white-space: pre-wrap; word-break: break-word; overflow-x: auto; color: var(--code-text); }
+  .code-block .kw { color: var(--accent); }
+  .code-block .str { color: var(--green); }
+  .code-block .cmt { color: var(--text-dim); font-style: italic; }
+  .code-block .fn { color: #0891b2; }
+
+  /* KPI */
+  .kpi { text-align: center; }
+  .kpi__value { font-size: clamp(36px, 6vw, 72px); font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .kpi__label { font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); margin-top: 8px; }
+
+  /* BADGE */
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+  .badge--amber { background: var(--accent-dim); color: var(--accent); }
+  .badge--green { background: var(--green-dim); color: var(--green); }
+  .badge--blue { background: var(--blue-dim); color: var(--blue); }
+  .badge--red { background: var(--red-dim); color: var(--red); }
+
+  /* LIST */
+  .feature-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .feature-list li { font-size: clamp(16px, 2vw, 20px); padding-left: 28px; position: relative; line-height: 1.5; }
+  .feature-list li::before { content: ''; position: absolute; left: 0; top: 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); opacity: 0.6; }
+
+  /* WEIGHT BARS */
+  .weight-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .weight-bar__label { font-family: var(--font-mono); font-size: 13px; width: 160px; color: var(--text-dim); }
+  .weight-bar__track { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .weight-bar__fill { height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(0.16, 1, 0.3, 1); }
+  .weight-bar__value { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 50px; text-align: right; }
+
+  /* FLOW */
+  .flow-step { display: flex; align-items: center; gap: 16px; }
+  .flow-step__num { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .flow-step__arrow { color: var(--text-dim); font-size: 20px; margin: 0 auto; opacity: 0.4; }
+
+  /* PER-SLIDE BG VARIETY */
+  .slide--glow-tl::before { content: ''; position: absolute; top: -20%; left: -10%; width: 50%; height: 60%; background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 70%); z-index: -1; pointer-events: none; }
+  .slide--glow-br::before { content: ''; position: absolute; bottom: -20%; right: -10%; width: 50%; height: 60%; background: radial-gradient(ellipse, var(--green-dim) 0%, transparent 70%); z-index: -1; pointer-events: none; }
+  .slide--glow-center::before { content: ''; position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; transform: translate(-50%, -50%); background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 70%); z-index: -1; pointer-events: none; }
+  .slide--grid-bg::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 32px 32px; z-index: -1; pointer-events: none; opacity: 0.5; }
+
+  /* MERMAID */
+  .mermaid-wrap { display: flex; justify-content: center; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow: hidden; min-height: 250px; }
+
+  /* SVG ACCENTS */
+  .corner-mark { position: absolute; width: 40px; height: 40px; opacity: 0.15; }
+  .corner-mark--tl { top: 24px; left: 24px; }
+  .corner-mark--br { bottom: 24px; right: 24px; transform: rotate(180deg); }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- ========== 1. TITLE ========== -->
+  <section class="slide slide--glow-center" style="align-items: center; text-align: center;">
+    <svg class="corner-mark corner-mark--tl" viewBox="0 0 40 40"><path d="M0 40V0h40" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <svg class="corner-mark corner-mark--br" viewBox="0 0 40 40"><path d="M0 40V0h40" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <span class="slide__label reveal" style="margin-bottom: 24px;">Open Source Video Intelligence</span>
+    <h1 class="slide__display reveal" style="margin-bottom: 20px;">gemma-clipper</h1>
+    <p class="slide__subtitle reveal" style="max-width: 600px;">Turn any video into its best clips.<br>Gemma 4 multimodal. No API keys. 100% local.</p>
+    <div class="reveal" style="display: flex; gap: 12px; margin-top: 32px;">
+      <span class="badge badge--amber">Python</span>
+      <span class="badge badge--green">Gemma 4</span>
+      <span class="badge badge--blue">vLLM</span>
+    </div>
+  </section>
+
+  <!-- ========== 2. THE PROBLEM ========== -->
+  <section class="slide slide--glow-tl">
+    <span class="slide__label reveal">The Problem</span>
+    <h2 class="slide__heading reveal" style="margin: 16px 0 24px;">Video clipping tools are stuck behind API paywalls</h2>
+    <div class="card-grid card-grid--3 reveal">
+      <div class="ve-card" style="border-top: 3px solid var(--red);">
+        <div class="ve-card__label" style="color: var(--red);">Cloud Lock-in</div>
+        <div class="ve-card__body">Every smart editing tool ships your video to OpenAI, Anthropic, or Google. Your content leaves your machine.</div>
+      </div>
+      <div class="ve-card" style="border-top: 3px solid var(--red);">
+        <div class="ve-card__label" style="color: var(--red);">Cost Per Clip</div>
+        <div class="ve-card__body">API calls for video analysis add up fast. A 10-minute video can cost $2-5 per run. That's unsustainable for regular creators.</div>
+      </div>
+      <div class="ve-card" style="border-top: 3px solid var(--red);">
+        <div class="ve-card__label" style="color: var(--red);">Privacy</div>
+        <div class="ve-card__body">Unreleased content, sensitive footage, client work. Sending it to third-party APIs isn't always an option.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 3. THE SOLUTION ========== -->
+  <section class="slide slide--glow-br">
+    <div class="split">
+      <div>
+        <span class="slide__label reveal">The Solution</span>
+        <h2 class="slide__heading reveal" style="margin: 16px 0 20px;">Your GPU does the thinking</h2>
+        <p class="slide__body reveal" style="margin-bottom: 24px;">gemma-clipper runs Gemma 4 (4B multimodal) locally via vLLM. It watches your video, scores every scene for engagement, and exports the best clips automatically.</p>
+        <ul class="feature-list reveal">
+          <li>Feed it an MP4 or YouTube URL</li>
+          <li>AI ranks scenes by engagement potential</li>
+          <li>Export clips in any format, any aspect ratio</li>
+          <li>Auto-captions via Whisper</li>
+          <li>Everything stays on your hardware</li>
+        </ul>
+      </div>
+      <div class="reveal">
+        <div class="ve-card ve-card--elevated" style="text-align: center; padding: 40px;">
+          <div style="font-size: 64px; margin-bottom: 16px;">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <rect x="4" y="12" width="56" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+              <polygon points="26,24 26,40 42,32" fill="var(--accent)"/>
+              <path d="M8 56h48" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="font-size: 14px; color: var(--accent); font-family: var(--font-mono); margin-bottom: 8px;">ZERO API KEYS REQUIRED</div>
+          <div style="font-size: 15px; color: var(--text-dim);">Gemma 4 E4B-it runs on a single A10 GPU (24GB) or any card with 6GB+ VRAM</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 4. HOW IT WORKS (OVERVIEW) ========== -->
+  <section class="slide slide--grid-bg" style="align-items: center; text-align: center;">
+    <span class="slide__label reveal">Pipeline</span>
+    <h2 class="slide__heading reveal" style="margin: 16px 0 40px;">5 steps from raw video to polished clips</h2>
+    <div style="display: flex; gap: 24px; align-items: center; justify-content: center; flex-wrap: wrap;" class="reveal">
+      <div class="ve-card ve-card--elevated" style="width: 160px; text-align: center; padding: 20px;">
+        <div class="flow-step__num" style="background: var(--accent-dim); color: var(--accent); margin: 0 auto 12px;">1</div>
+        <div class="ve-card__title" style="font-size: 15px;">Ingest</div>
+        <div class="ve-card__body" style="font-size: 13px;">MP4 or YouTube URL via yt-dlp</div>
+      </div>
+      <span class="flow-step__arrow">&#8594;</span>
+      <div class="ve-card ve-card--elevated" style="width: 160px; text-align: center; padding: 20px;">
+        <div class="flow-step__num" style="background: var(--green-dim); color: var(--green); margin: 0 auto 12px;">2</div>
+        <div class="ve-card__title" style="font-size: 15px;">Detect</div>
+        <div class="ve-card__body" style="font-size: 13px;">Scenes + silence via ffmpeg filters</div>
+      </div>
+      <span class="flow-step__arrow">&#8594;</span>
+      <div class="ve-card ve-card--elevated" style="width: 160px; text-align: center; padding: 20px;">
+        <div class="flow-step__num" style="background: var(--accent-dim); color: var(--accent); margin: 0 auto 12px;">3</div>
+        <div class="ve-card__title" style="font-size: 15px;">Analyze</div>
+        <div class="ve-card__body" style="font-size: 13px;">Gemma 4 scores each segment</div>
+      </div>
+      <span class="flow-step__arrow">&#8594;</span>
+      <div class="ve-card ve-card--elevated" style="width: 160px; text-align: center; padding: 20px;">
+        <div class="flow-step__num" style="background: var(--green-dim); color: var(--green); margin: 0 auto 12px;">4</div>
+        <div class="ve-card__title" style="font-size: 15px;">Rank</div>
+        <div class="ve-card__body" style="font-size: 13px;">4-signal weighted scoring algorithm</div>
+      </div>
+      <span class="flow-step__arrow">&#8594;</span>
+      <div class="ve-card ve-card--elevated" style="width: 160px; text-align: center; padding: 20px;">
+        <div class="flow-step__num" style="background: var(--accent-dim); color: var(--accent); margin: 0 auto 12px;">5</div>
+        <div class="ve-card__title" style="font-size: 15px;">Export</div>
+        <div class="ve-card__body" style="font-size: 13px;">MP4, WebM, or GIF with options</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 5. DIVIDER: INPUT ========== -->
+  <section class="slide slide--divider">
+    <div class="divider__num">01</div>
+    <span class="slide__label reveal">Section One</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Video<br>Input</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">Two ways in: drop a file or paste a URL. The pipeline handles both identically after download.</p>
+  </section>
+
+  <!-- ========== 6. VIDEO SOURCES ========== -->
+  <section class="slide slide--glow-tl">
+    <div class="split">
+      <div>
+        <span class="slide__label reveal">Local Files</span>
+        <h2 class="slide__subheading reveal" style="margin: 12px 0 16px;">Any MP4, WebM, MKV, AVI, or MOV</h2>
+        <p class="slide__body reveal" style="margin-bottom: 20px;">Upload via the web UI (drag-and-drop) or point the CLI at a local path. ffprobe extracts metadata: duration, resolution, fps, codec, audio tracks.</p>
+        <div class="code-block reveal" style="font-size: 14px;">
+<span class="fn">gemma-clipper</span> analyze my_video.mp4 \
+  --max-clips <span class="str">5</span> \
+  --max-duration <span class="str">60</span></div>
+      </div>
+      <div>
+        <span class="slide__label reveal" style="color: var(--green);">YouTube</span>
+        <h2 class="slide__subheading reveal" style="margin: 12px 0 16px;">Paste a URL, yt-dlp handles the rest</h2>
+        <p class="slide__body reveal" style="margin-bottom: 20px;">Automatic download with resolution capping. Extracts chapter metadata when available for chapter-aware scene boundaries. Cookie support for authenticated downloads.</p>
+        <div class="code-block reveal" style="font-size: 14px;">
+<span class="fn">gemma-clipper</span> analyze \
+  <span class="str">"https://youtube.com/watch?v=..."</span> \
+  --max-clips <span class="str">10</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 7. DIVIDER: DETECTION ========== -->
+  <section class="slide slide--divider slide--glow-br">
+    <div class="divider__num">02</div>
+    <span class="slide__label reveal">Section Two</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Scene<br>Detection</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">ffmpeg does the heavy lifting. No GPU needed for this stage. Fast enough to process a 10-minute video in seconds.</p>
+  </section>
+
+  <!-- ========== 8. SCENE DETECTION DETAIL ========== -->
+  <section class="slide slide--glow-tl">
+    <span class="slide__label reveal">How It Works</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">Two detection modes, combinable</h2>
+    <div class="split--60-40 split reveal">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="ve-card ve-card--accent">
+          <div class="ve-card__label" style="color: var(--accent);">Scene Filter</div>
+          <div class="ve-card__title">gt(scene, threshold)</div>
+          <div class="ve-card__body">ffmpeg's built-in scene change detector. Compares consecutive frames, fires when the difference exceeds a configurable threshold (default 0.3). Returns timestamps + magnitude scores.</div>
+        </div>
+        <div class="ve-card ve-card--green">
+          <div class="ve-card__label" style="color: var(--green);">Keyframe Snapping</div>
+          <div class="ve-card__title">detect_scenes_with_keyframes()</div>
+          <div class="ve-card__body">Merges scene boundaries with codec keyframe positions. Snaps each boundary to the nearest I-frame for clean cuts without re-encoding artifacts.</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="ve-card ve-card--elevated" style="text-align: center; padding: 32px;">
+          <div class="kpi__value" style="color: var(--accent);">124</div>
+          <div class="kpi__label">scenes detected</div>
+          <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">in a 596s test video</div>
+        </div>
+        <div class="ve-card ve-card--elevated" style="text-align: center; padding: 32px;">
+          <div class="kpi__value" style="color: var(--green);">0.3s</div>
+          <div class="kpi__label">detection time</div>
+          <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">no GPU, just ffmpeg</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 9. SILENCE + AUDIO ========== -->
+  <section class="slide slide--glow-br">
+    <div class="split--60-40 split">
+      <div>
+        <span class="slide__label reveal">Audio Analysis</span>
+        <h2 class="slide__heading reveal" style="margin: 12px 0 20px;">Silence detection and speech mapping</h2>
+        <p class="slide__body reveal" style="margin-bottom: 24px;">The silence detector uses ffmpeg's silencedetect filter. Speech regions are the inverse: everywhere that isn't silent. Both feed into the ranking algorithm as signals.</p>
+        <div class="card-grid card-grid--2 reveal">
+          <div class="ve-card" style="text-align: center; padding: 24px;">
+            <div class="kpi__value" style="font-size: 36px; color: var(--accent);">80</div>
+            <div class="kpi__label">silent regions</div>
+          </div>
+          <div class="ve-card" style="text-align: center; padding: 24px;">
+            <div class="kpi__value" style="font-size: 36px; color: var(--green);">77</div>
+            <div class="kpi__label">speech regions</div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="ve-card ve-card--elevated">
+          <div class="ve-card__label" style="color: var(--blue);">Silence Removal</div>
+          <div class="ve-card__title">Jump cut automation</div>
+          <div class="ve-card__body" style="margin-bottom: 12px;">Builds a complex concat filtergraph that splices out silent segments with configurable padding. One command strips all dead air from a video.</div>
+          <div class="code-block" style="font-size: 13px; padding: 12px;">remove_silence(
+  source, output,
+  threshold_db=<span class="str">-30.0</span>,
+  min_duration=<span class="str">0.5</span>,
+  padding=<span class="str">0.1</span>
+)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 10. DIVIDER: AI ========== -->
+  <section class="slide slide--divider slide--grid-bg">
+    <div class="divider__num">03</div>
+    <span class="slide__label reveal">Section Three</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Gemma 4<br>Analysis</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">The multimodal brain. Each video chunk gets sent to Gemma 4 E4B-it for structured analysis. No cloud. Just your GPU.</p>
+  </section>
+
+  <!-- ========== 11. GEMMA ARCHITECTURE ========== -->
+  <section class="slide slide--glow-center">
+    <span class="slide__label reveal">Model Pipeline</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">Chunk, encode, analyze, parse</h2>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;" class="reveal">
+      <div class="ve-card" style="flex: 1; min-width: 200px; text-align: center; border-top: 3px solid var(--accent);">
+        <div class="ve-card__label" style="color: var(--accent); justify-content: center;">Step 1</div>
+        <div class="ve-card__title">Extract Segment</div>
+        <div class="ve-card__body">ffmpeg cuts each scene at 480px, CRF 30. Keeps files under 18MB for the model context window.</div>
+      </div>
+      <div class="ve-card" style="flex: 1; min-width: 200px; text-align: center; border-top: 3px solid var(--green);">
+        <div class="ve-card__label" style="color: var(--green); justify-content: center;">Step 2</div>
+        <div class="ve-card__title">Base64 Encode</div>
+        <div class="ve-card__body">Video bytes become a data URI. Sent as a multimodal message to vLLM's OpenAI-compatible endpoint.</div>
+      </div>
+      <div class="ve-card" style="flex: 1; min-width: 200px; text-align: center; border-top: 3px solid var(--blue);">
+        <div class="ve-card__label" style="color: var(--blue); justify-content: center;">Step 3</div>
+        <div class="ve-card__title">Gemma Analyzes</div>
+        <div class="ve-card__body">Returns structured JSON: description, objects, mood, energy level, audio type, interest score, tags.</div>
+      </div>
+      <div class="ve-card" style="flex: 1; min-width: 200px; text-align: center; border-top: 3px solid var(--accent);">
+        <div class="ve-card__label" style="color: var(--accent); justify-content: center;">Step 4</div>
+        <div class="ve-card__title">Retry + Parse</div>
+        <div class="ve-card__body">Robust JSON extraction handles markdown fences, surrounding text. 2 retries on malformed output.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 12. RANKING ALGORITHM ========== -->
+  <section class="slide slide--glow-tl">
+    <div class="split">
+      <div>
+        <span class="slide__label reveal">Scoring</span>
+        <h2 class="slide__heading reveal" style="margin: 12px 0 20px;">4-signal weighted ranking</h2>
+        <p class="slide__body reveal" style="margin-bottom: 28px;">Each scene gets a composite score from 4 independently measured signals. The weights are tuned for social media engagement.</p>
+        <div class="reveal">
+          <div class="weight-bar">
+            <div class="weight-bar__label">Interest Score</div>
+            <div class="weight-bar__track"><div class="weight-bar__fill" style="width: 80%; background: var(--accent);"></div></div>
+            <div class="weight-bar__value" style="color: var(--accent);">0.40</div>
+          </div>
+          <div class="weight-bar">
+            <div class="weight-bar__label">Energy Level</div>
+            <div class="weight-bar__track"><div class="weight-bar__fill" style="width: 60%; background: var(--green);"></div></div>
+            <div class="weight-bar__value" style="color: var(--green);">0.30</div>
+          </div>
+          <div class="weight-bar">
+            <div class="weight-bar__label">Speech Presence</div>
+            <div class="weight-bar__track"><div class="weight-bar__fill" style="width: 30%; background: var(--blue);"></div></div>
+            <div class="weight-bar__value" style="color: var(--blue);">0.15</div>
+          </div>
+          <div class="weight-bar">
+            <div class="weight-bar__label">Visual Variety</div>
+            <div class="weight-bar__track"><div class="weight-bar__fill" style="width: 30%; background: #a78bfa;"></div></div>
+            <div class="weight-bar__value" style="color: #a78bfa;">0.15</div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="ve-card ve-card--elevated" style="padding: 28px;">
+          <div class="ve-card__label" style="color: var(--accent);">Clip Selection</div>
+          <div class="ve-card__title">Greedy non-overlapping</div>
+          <div class="ve-card__body" style="margin-bottom: 16px;">Sorts scenes by final score. Picks the highest, skips anything overlapping by more than 50%. Merges adjacent high-scorers. Respects min/max duration constraints.</div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <span class="badge badge--amber">configurable max clips</span>
+            <span class="badge badge--green">overlap detection</span>
+            <span class="badge badge--blue">boundary-aware</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 13. DIVIDER: OUTPUT ========== -->
+  <section class="slide slide--divider">
+    <div class="divider__num">04</div>
+    <span class="slide__label reveal">Section Four</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Export<br>Options</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">Every clip is configurable. Format, resolution, aspect ratio, captions, quality. One pipeline, infinite output variations.</p>
+  </section>
+
+  <!-- ========== 14. EXPORT FORMATS ========== -->
+  <section class="slide slide--glow-br">
+    <span class="slide__label reveal">Formats</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">Three output formats, four aspect ratios</h2>
+    <div class="split reveal">
+      <div>
+        <div class="card-grid" style="gap: 12px;">
+          <div class="ve-card ve-card--accent" style="padding: 16px;">
+            <div class="ve-card__title">MP4 (default)</div>
+            <div class="ve-card__body">H.264 + AAC. Universal playback. Configurable CRF (0-51).</div>
+          </div>
+          <div class="ve-card ve-card--green" style="padding: 16px;">
+            <div class="ve-card__title">WebM</div>
+            <div class="ve-card__body">VP9 + Opus. Web-optimized. Smaller files at equivalent quality.</div>
+          </div>
+          <div class="ve-card ve-card--blue" style="padding: 16px;">
+            <div class="ve-card__title">GIF</div>
+            <div class="ve-card__body">Two-pass palettegen for quality. Great for previews and social embeds.</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card-grid card-grid--2" style="gap: 12px;">
+          <div class="ve-card ve-card--elevated" style="text-align: center; padding: 20px;">
+            <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">16:9</div>
+            <div style="font-size: 13px; color: var(--text-dim);">Landscape</div>
+          </div>
+          <div class="ve-card ve-card--elevated" style="text-align: center; padding: 20px;">
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent); margin-bottom: 4px;">9:16</div>
+            <div style="font-size: 13px; color: var(--text-dim);">Portrait / Reels</div>
+          </div>
+          <div class="ve-card ve-card--elevated" style="text-align: center; padding: 20px;">
+            <div style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">1:1</div>
+            <div style="font-size: 13px; color: var(--text-dim);">Square</div>
+          </div>
+          <div class="ve-card ve-card--elevated" style="text-align: center; padding: 20px;">
+            <div style="font-size: 24px; font-weight: 800; color: var(--green); margin-bottom: 4px;">orig</div>
+            <div style="font-size: 13px; color: var(--text-dim);">Keep source</div>
+          </div>
+        </div>
+        <div class="ve-card" style="margin-top: 12px; padding: 16px; text-align: center;">
+          <div class="ve-card__body">9:16 uses center-crop from 16:9 source. 1:1 takes a square center cut. No letterboxing.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 15. CAPTIONS ========== -->
+  <section class="slide slide--glow-tl">
+    <div class="split--40-60 split">
+      <div>
+        <span class="slide__label reveal" style="color: var(--green);">Captions</span>
+        <h2 class="slide__heading reveal" style="margin: 12px 0 20px;">Whisper-powered auto-captions</h2>
+        <p class="slide__body reveal">faster-whisper handles transcription. Output as SRT, VTT, or burned directly into the video with 3 visual styles.</p>
+        <div class="reveal" style="margin-top: 24px; display: flex; flex-direction: column; gap: 8px;">
+          <span class="badge badge--amber" style="width: fit-content;">Default: white + black outline</span>
+          <span class="badge badge--green" style="width: fit-content;">Bold: large yellow text</span>
+          <span class="badge badge--blue" style="width: fit-content;">Minimal: small gray text</span>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="code-block" style="font-size: 14px;">
+<span class="cmt"># Generate subtitles</span>
+<span class="fn">gemma-clipper</span> captions video.mp4 \
+  --model <span class="str">base</span> --format <span class="str">srt</span>
+
+<span class="cmt"># Burn captions into video</span>
+<span class="fn">gemma-clipper</span> captions video.mp4 \
+  --burn --style <span class="str">bold</span>
+
+<span class="cmt"># Export with captions baked in</span>
+<span class="fn">gemma-clipper</span> export video.mp4 \
+  --captions --caption-style <span class="str">minimal</span> \
+  --aspect-ratio <span class="str">9:16</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 16. DIVIDER: INTERFACES ========== -->
+  <section class="slide slide--divider slide--glow-center">
+    <div class="divider__num">05</div>
+    <span class="slide__label reveal">Section Five</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Two<br>Interfaces</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">A terminal-first CLI for power users and automation. A dark-themed web UI for visual exploration and manual clip selection.</p>
+  </section>
+
+  <!-- ========== 17. CLI COMMANDS ========== -->
+  <section class="slide slide--glow-tl">
+    <span class="slide__label reveal">CLI</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 20px;">7 commands, Rich output, zero config</h2>
+    <table class="slide-table reveal">
+      <thead><tr><th>Command</th><th>What It Does</th><th>Key Options</th></tr></thead>
+      <tbody>
+        <tr><td><code>analyze</code></td><td>Full pipeline: download, detect, analyze, rank, clip</td><td>--max-clips, --max-duration</td></tr>
+        <tr><td><code>scenes</code></td><td>Scene detection only (fast, no GPU)</td><td>--threshold, --json</td></tr>
+        <tr><td><code>clips</code></td><td>Display clips from a previous analysis</td><td>results.json or job ID</td></tr>
+        <tr><td><code>export</code></td><td>Export clips with format/aspect/caption options</td><td>--format, --aspect-ratio, --captions</td></tr>
+        <tr><td><code>download</code></td><td>Download a YouTube video</td><td>--max-resolution</td></tr>
+        <tr><td><code>captions</code></td><td>Transcribe and generate SRT/VTT</td><td>--model, --burn, --style</td></tr>
+        <tr><td><code>serve</code></td><td>Start the FastAPI server</td><td>--host, --port, --reload</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ========== 18. WEB UI ========== -->
+  <section class="slide slide--glow-br">
+    <span class="slide__label reveal" style="color: var(--green);">Web UI</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">React + Vite + Tailwind. Dark theme.</h2>
+    <div class="card-grid card-grid--3 reveal">
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label" style="color: var(--accent);">Upload</div>
+        <div class="ve-card__title">Drag-and-drop + YouTube</div>
+        <div class="ve-card__body">Unified input panel. Paste a URL or drag a file. Options sidebar for clip count and duration sliders. Upload progress bar.</div>
+      </div>
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label" style="color: var(--green);">Scene Grid</div>
+        <div class="ve-card__title">Ranked visual browser</div>
+        <div class="ve-card__body">Thumbnail cards with interest score bars (green/amber/red), time ranges, descriptions, and tags. Click to select for custom clip creation.</div>
+      </div>
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label" style="color: var(--blue);">Export Panel</div>
+        <div class="ve-card__title">Format + aspect + quality</div>
+        <div class="ve-card__body">MP4/WebM/GIF selector. Aspect ratio picker. Caption toggle + style. CRF quality slider. Export selected or all. Progress indicator.</div>
+      </div>
+    </div>
+    <div class="card-grid card-grid--2 reveal" style="margin-top: 16px;">
+      <div class="ve-card">
+        <div class="ve-card__label" style="color: var(--accent);">Job Tracking</div>
+        <div class="ve-card__body">Sidebar job list with color-coded status badges. Auto-refresh every 3s for active jobs. Animated progress bar during processing.</div>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label" style="color: var(--green);">Clip Preview</div>
+        <div class="ve-card__body">Embedded HTML5 video player for exported clips. Download button per clip. Score badges and reasoning text.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 19. API ENDPOINTS ========== -->
+  <section class="slide slide--grid-bg">
+    <span class="slide__label reveal">API</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 20px;">10 endpoints. FastAPI + async workers.</h2>
+    <table class="slide-table reveal" style="font-size: 14px;">
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge--green" style="font-size: 10px;">POST</span></td><td><code>/api/videos/upload</code></td><td>Upload an MP4 file</td></tr>
+        <tr><td><span class="badge badge--green" style="font-size: 10px;">POST</span></td><td><code>/api/videos/youtube</code></td><td>Submit a YouTube URL</td></tr>
+        <tr><td><span class="badge badge--blue" style="font-size: 10px;">GET</span></td><td><code>/api/videos</code></td><td>List all jobs (?status= filter)</td></tr>
+        <tr><td><span class="badge badge--blue" style="font-size: 10px;">GET</span></td><td><code>/api/videos/{id}</code></td><td>Job detail with scenes + clips</td></tr>
+        <tr><td><span class="badge badge--red" style="font-size: 10px;">DEL</span></td><td><code>/api/videos/{id}</code></td><td>Delete a job and files</td></tr>
+        <tr><td><span class="badge badge--blue" style="font-size: 10px;">GET</span></td><td><code>/api/clips/{job_id}</code></td><td>Clips for job (ranked by score)</td></tr>
+        <tr><td><span class="badge badge--green" style="font-size: 10px;">POST</span></td><td><code>/api/clips/{job_id}/export</code></td><td>Export clips with options</td></tr>
+        <tr><td><span class="badge badge--blue" style="font-size: 10px;">GET</span></td><td><code>/api/clips/{job_id}/scenes</code></td><td>Ranked scene list</td></tr>
+        <tr><td><span class="badge badge--green" style="font-size: 10px;">POST</span></td><td><code>/api/clips/{job_id}/custom</code></td><td>Create custom clip (manual)</td></tr>
+        <tr><td><span class="badge badge--blue" style="font-size: 10px;">GET</span></td><td><code>/api/clips/download/{id}</code></td><td>Download exported clip file</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ========== 20. DIVIDER: INFRA ========== -->
+  <section class="slide slide--divider slide--glow-tl">
+    <div class="divider__num">06</div>
+    <span class="slide__label reveal">Section Six</span>
+    <h2 class="slide__display reveal" style="margin-top: 16px; font-size: clamp(40px, 8vw, 96px);">Infra</h2>
+    <p class="slide__body reveal" style="max-width: 500px; margin-top: 20px;">Docker Compose spins up 3 containers. One command from zero to running.</p>
+  </section>
+
+  <!-- ========== 21. DOCKER ARCHITECTURE ========== -->
+  <section class="slide slide--glow-center">
+    <span class="slide__label reveal">Docker Compose</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">3 services, one GPU, fully self-contained</h2>
+    <div class="card-grid card-grid--3 reveal">
+      <div class="ve-card ve-card--elevated" style="border-top: 3px solid var(--accent); text-align: center; padding: 28px;">
+        <div style="font-size: 36px; margin-bottom: 12px;">
+          <svg width="36" height="36" viewBox="0 0 36 36"><rect x="4" y="8" width="28" height="20" rx="3" stroke="var(--accent)" stroke-width="2" fill="none"/><rect x="10" y="14" width="6" height="3" fill="var(--accent)" opacity="0.4"/><rect x="20" y="14" width="6" height="3" fill="var(--accent)" opacity="0.4"/><rect x="10" y="20" width="16" height="3" fill="var(--accent)" opacity="0.6"/></svg>
+        </div>
+        <div class="ve-card__title">vLLM</div>
+        <div class="ve-card__body" style="margin-top: 8px;">Gemma 4 E4B-it<br>Port 8000<br>NVIDIA GPU passthrough<br>8192 token context</div>
+      </div>
+      <div class="ve-card ve-card--elevated" style="border-top: 3px solid var(--green); text-align: center; padding: 28px;">
+        <div style="font-size: 36px; margin-bottom: 12px;">
+          <svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="12" stroke="var(--green)" stroke-width="2" fill="none"/><path d="M12 18h12M18 12v12" stroke="var(--green)" stroke-width="2"/></svg>
+        </div>
+        <div class="ve-card__title">API Server</div>
+        <div class="ve-card__body" style="margin-top: 8px;">FastAPI + Uvicorn<br>Port 8080<br>Async job worker<br>SQLite persistence</div>
+      </div>
+      <div class="ve-card ve-card--elevated" style="border-top: 3px solid var(--blue); text-align: center; padding: 28px;">
+        <div style="font-size: 36px; margin-bottom: 12px;">
+          <svg width="36" height="36" viewBox="0 0 36 36"><rect x="6" y="6" width="24" height="24" rx="4" stroke="var(--blue)" stroke-width="2" fill="none"/><rect x="10" y="10" width="16" height="8" rx="2" fill="var(--blue)" opacity="0.3"/><rect x="10" y="22" width="7" height="4" rx="1" fill="var(--blue)" opacity="0.3"/><rect x="19" y="22" width="7" height="4" rx="1" fill="var(--blue)" opacity="0.3"/></svg>
+        </div>
+        <div class="ve-card__title">Frontend</div>
+        <div class="ve-card__body" style="margin-top: 8px;">React + Vite<br>Port 5173<br>Tailwind CSS<br>React Query</div>
+      </div>
+    </div>
+    <div class="code-block reveal" style="margin-top: 24px; text-align: center; font-size: 16px; padding: 16px;">
+<span class="kw">export</span> HF_TOKEN=your_token && <span class="fn">docker compose up</span></div>
+  </section>
+
+  <!-- ========== 22. E2E TEST RESULTS ========== -->
+  <section class="slide slide--glow-br">
+    <span class="slide__label reveal">Verified</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">13 tests passing. Real video. No mocks.</h2>
+    <div class="split reveal">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Video probe (ffprobe metadata)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Keyframe extraction</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Scene detection (124 scenes)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Silence detection (80 silent, 77 speech)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Frame + segment extraction</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Export: MP4, portrait 9:16, GIF</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Ranker + clip selection</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Database CRUD (SQLite)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px;"><span style="color: var(--green); font-size: 18px;">&#10003;</span> <span>Full pipeline (probe to export)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; opacity: 0.5;"><span style="color: var(--text-dim); font-size: 18px;">&#8212;</span> <span style="color: var(--text-dim);">YouTube (needs cookies)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; opacity: 0.5;"><span style="color: var(--text-dim); font-size: 18px;">&#8212;</span> <span style="color: var(--text-dim);">Gemma health (needs vLLM)</span></div>
+        <div class="ve-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; opacity: 0.5;"><span style="color: var(--text-dim); font-size: 18px;">&#8212;</span> <span style="color: var(--text-dim);">Gemma analysis (needs vLLM)</span></div>
+        <div class="ve-card ve-card--elevated" style="text-align: center; padding: 20px; margin-top: 8px;">
+          <div style="font-size: 13px; color: var(--text-dim); font-family: var(--font-mono);">TEST VIDEO</div>
+          <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">Big Buck Bunny</div>
+          <div style="font-size: 14px; color: var(--text-dim);">596.5s, 320x180, public domain</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 23. TECH STACK ========== -->
+  <section class="slide slide--grid-bg">
+    <span class="slide__label reveal">Stack</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 24px;">Everything under the hood</h2>
+    <div class="card-grid card-grid--4 reveal">
+      <div class="ve-card" style="border-top: 3px solid var(--accent);">
+        <div class="ve-card__label" style="color: var(--accent);">AI</div>
+        <div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">Gemma 4 E4B-it<br>vLLM<br>faster-whisper<br>httpx (async)</div>
+      </div>
+      <div class="ve-card" style="border-top: 3px solid var(--green);">
+        <div class="ve-card__label" style="color: var(--green);">Video</div>
+        <div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">ffmpeg / ffprobe<br>yt-dlp<br>scene detection<br>silence detection</div>
+      </div>
+      <div class="ve-card" style="border-top: 3px solid var(--blue);">
+        <div class="ve-card__label" style="color: var(--blue);">Backend</div>
+        <div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">FastAPI<br>Uvicorn<br>aiosqlite<br>Pydantic v2</div>
+      </div>
+      <div class="ve-card" style="border-top: 3px solid #a78bfa;">
+        <div class="ve-card__label" style="color: #a78bfa;">Frontend</div>
+        <div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">React 18<br>Vite 6<br>TypeScript<br>Tailwind CSS v3</div>
+      </div>
+    </div>
+    <div class="card-grid card-grid--4 reveal" style="margin-top: 16px;">
+      <div class="ve-card" style="text-align: center;"><div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">Typer + Rich</div></div>
+      <div class="ve-card" style="text-align: center;"><div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">React Query</div></div>
+      <div class="ve-card" style="text-align: center;"><div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">lucide-react</div></div>
+      <div class="ve-card" style="text-align: center;"><div class="ve-card__body" style="font-family: var(--font-mono); font-size: 13px;">Docker Compose</div></div>
+    </div>
+  </section>
+
+  <!-- ========== 24. INSPIRED BY ========== -->
+  <section class="slide slide--glow-center" style="align-items: center; text-align: center;">
+    <span class="slide__label reveal">Standing On</span>
+    <h2 class="slide__heading reveal" style="margin: 12px 0 28px;">Inspired by two projects</h2>
+    <div class="split reveal" style="max-width: 800px;">
+      <div class="ve-card ve-card--elevated" style="padding: 28px; text-align: center;">
+        <div class="ve-card__title" style="font-size: 22px; color: var(--accent);">vibeframe</div>
+        <div class="ve-card__body" style="margin-top: 8px;">CLI-first AI video editing with 53 MCP tools, YAML pipelines, and agent mode. The UX inspiration.</div>
+        <div style="margin-top: 12px;"><span class="badge badge--amber">Node.js</span></div>
+      </div>
+      <div class="ve-card ve-card--elevated" style="padding: 28px; text-align: center;">
+        <div class="ve-card__title" style="font-size: 22px; color: var(--green);">overwatch</div>
+        <div class="ve-card__body" style="margin-top: 8px;">Gemma 4 multimodal video analysis with chunk-based processing. The AI pipeline reference.</div>
+        <div style="margin-top: 12px;"><span class="badge badge--green">Python</span></div>
+      </div>
+    </div>
+    <p class="slide__body reveal" style="margin-top: 24px; max-width: 600px;">The key difference: gemma-clipper runs 100% locally. No OpenAI key, no Anthropic key, no cloud bill. Just your GPU and Gemma 4.</p>
+  </section>
+
+  <!-- ========== 25. CLOSING ========== -->
+  <section class="slide slide--glow-center" style="align-items: center; text-align: center;">
+    <svg class="corner-mark corner-mark--tl" viewBox="0 0 40 40"><path d="M0 40V0h40" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <svg class="corner-mark corner-mark--br" viewBox="0 0 40 40"><path d="M0 40V0h40" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <span class="slide__label reveal" style="margin-bottom: 20px;">Get Started</span>
+    <h2 class="slide__display reveal" style="font-size: clamp(36px, 7vw, 80px); margin-bottom: 24px;">pip install<br>and clip.</h2>
+    <div class="code-block reveal" style="display: inline-block; font-size: 16px; padding: 16px 32px; text-align: left;">
+<span class="fn">pip install</span> -e <span class="str">".[dev]"</span>
+<span class="fn">gemma-clipper</span> analyze video.mp4</div>
+    <div class="reveal" style="margin-top: 32px; display: flex; gap: 16px; align-items: center;">
+      <span class="badge badge--amber">github.com/jasperan/gemma-clipper</span>
+      <span class="badge badge--green">MIT License</span>
+    </div>
+  </section>
+
+</div>
+
+<!-- NAV CHROME -->
+<div class="deck-progress" id="progress"></div>
+<div class="deck-dots" id="dots"></div>
+<div class="deck-counter" id="counter"></div>
+<div class="deck-hints" id="hints">Arrow keys or scroll to navigate</div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = [...document.querySelectorAll('.slide')];
+  const progress = document.getElementById('progress');
+  const dotsContainer = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const hints = document.getElementById('hints');
+  let current = 0;
+
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'deck-dot';
+    dot.addEventListener('click', () => goTo(i));
+    dotsContainer.appendChild(dot);
+  });
+  const dots = [...dotsContainer.children];
+
+  function update() {
+    const scrollTop = deck.scrollTop;
+    const slideHeight = window.innerHeight;
+    current = Math.round(scrollTop / slideHeight);
+    current = Math.max(0, Math.min(current, slides.length - 1));
+
+    progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+    counter.textContent = `${current + 1} / ${slides.length}`;
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+
+    slides.forEach((s, i) => {
+      if (i <= current + 1 && i >= current - 1) s.classList.add('visible');
+    });
+  }
+
+  function goTo(i) {
+    slides[i].scrollIntoView({ behavior: 'smooth' });
+  }
+
+  deck.addEventListener('scroll', () => { requestAnimationFrame(update); });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault();
+      if (current < slides.length - 1) goTo(current + 1);
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (current > 0) goTo(current - 1);
+    }
+    if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    if (e.key === 'End') { e.preventDefault(); goTo(slides.length - 1); }
+  });
+
+  setTimeout(() => hints.classList.add('faded'), 4000);
+  update();
+  slides[0].classList.add('visible');
+</script>
+
+</body>
+</html>

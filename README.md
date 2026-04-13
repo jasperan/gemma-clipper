@@ -1,10 +1,40 @@
-# gemma-clipper
+<p align="center">
+  <img src="docs/slides/01-title.jpg" width="600"/>
+</p>
 
-Turn any video into its best clips. Feed it an MP4 or YouTube URL, and Gemma 4 figures out which parts are worth keeping.
+<h1 align="center">gemma-clipper</h1>
 
-No API keys. No cloud dependencies. Everything runs on your own GPU.
+<p align="center">
+  <strong>AI-powered video clipping with Gemma 4. No API keys. 100% local.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/gemma_4-E4B--it-orange?style=for-the-badge&logo=google&logoColor=white" alt="Gemma 4"/>
+  <img src="https://img.shields.io/badge/vLLM-local_inference-green?style=for-the-badge" alt="vLLM"/>
+  <img src="https://img.shields.io/badge/license-MIT-gray?style=for-the-badge" alt="License"/>
+</p>
+
+## Architecture at a Glance
+
+<table>
+  <tr>
+    <td align="center"><strong>Pipeline Overview</strong><br><img src="docs/slides/02-pipeline.jpg" width="400"/></td>
+    <td align="center"><strong>Ranking Algorithm</strong><br><img src="docs/slides/03-ranking.jpg" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>CLI Commands</strong><br><img src="docs/slides/04-cli.jpg" width="400"/></td>
+    <td align="center"><strong>Docker Architecture</strong><br><img src="docs/slides/05-docker.jpg" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Test Results</strong><br><img src="docs/slides/06-tests.jpg" width="400"/></td>
+    <td align="center"><strong>Full slide deck</strong><br><a href="docs/slides/gemma-clipper-slides.html">Open the interactive 25-slide presentation</a></td>
+  </tr>
+</table>
 
 ## What it does
+
+Turn any video into its best clips. Feed it an MP4 or YouTube URL, and Gemma 4 figures out which parts are worth keeping.
 
 1. **Ingests** your video (local file or YouTube URL via yt-dlp)
 2. **Detects scenes** using ffmpeg's scene filter + keyframe analysis
@@ -78,6 +108,22 @@ docker compose up
 ```
 
 This spins up 3 containers: vLLM (GPU), the API server, and the frontend. The web UI lands at `http://localhost:5173`.
+
+<details>
+<summary><strong>Advanced: run services individually</strong></summary>
+
+```bash
+# Start vLLM separately
+docker compose up vllm
+
+# Start API without Docker
+GCLIPPER_VLLM_BASE_URL=http://localhost:8000/v1 gemma-clipper serve
+
+# Start frontend dev server
+cd frontend && npm install && npm run dev
+```
+
+</details>
 
 ## Architecture
 
@@ -158,3 +204,9 @@ The key difference: gemma-clipper runs 100% locally. No OpenAI key, no Anthropic
 ## License
 
 MIT
+
+<div align="center">
+  <img src="https://img.shields.io/badge/built_with-Gemma_4-orange?style=flat-square" alt="Built with Gemma 4"/>
+  <img src="https://img.shields.io/badge/powered_by-vLLM-green?style=flat-square" alt="Powered by vLLM"/>
+  <img src="https://img.shields.io/badge/video-ffmpeg-blue?style=flat-square" alt="FFmpeg"/>
+</div>
