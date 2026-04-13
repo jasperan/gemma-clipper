@@ -1,0 +1,47 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    command: >
+      --model google/gemma-4-E4B-it
+      --max-model-len 8192
+      --dtype auto
+      --gpu-memory-utilization 0.90
+      --limit-mm-per-prompt '{"image":2,"video":1,"audio":1}'
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./output:/app/output
+      - ./thumbnails:/app/thumbnails
+    environment:
+      - GCLIPPER_VLLM_BASE_URL=http://vllm:8000/v1
+    depends_on:
+      - vllm
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  huggingface-cache:

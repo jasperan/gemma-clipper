@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+*.key
+*credentials*
+*secret*
+
+# Agent/tool directories
+.agents/
+.claude/
+.crush/
+.openhands/
+.serena/
+.omc/
+.playwright-mcp/
+
+# Generated output
+dogfood-output/
+docs/plans/
+task_plan.md
+findings.md
+progress.md
+content/
+
+# Project-specific
+uploads/
+output/
+*.mp4
+*.webm
+*.mkv
+*.avi
+*.mov
+thumbnails/
+jobs.db
+jobs.db-wal
+jobs.db-shm
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
