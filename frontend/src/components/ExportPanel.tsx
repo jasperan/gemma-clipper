@@ -52,85 +52,89 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
   };
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-        <Download className="h-4 w-4 text-emerald-400" />
+    <section className="rounded-2xl border border-border bg-surface-raised p-4 space-y-4 shadow-card" aria-label="Export options">
+      <h3 className="text-sm font-semibold text-zinc-200 flex items-center gap-2.5">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent-muted">
+          <Download className="h-3.5 w-3.5 text-accent" />
+        </div>
         Export
       </h3>
 
       {/* Format */}
-      <div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+      <fieldset>
+        <legend className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500">
           <FileVideo className="h-3 w-3" /> Format
-        </label>
+        </legend>
         <div className="flex gap-1.5">
           {FORMATS.map((f) => (
             <button
               key={f}
               onClick={() => setFormat(f)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium uppercase transition-colors ${
+              className={`focus-ring rounded-lg px-3 py-1.5 text-xs font-semibold uppercase transition-all duration-200 ${
                 format === f
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                  ? "bg-accent text-[#0c0c0e] shadow-glow"
+                  : "bg-surface-overlay text-zinc-500 hover:text-zinc-300 hover:bg-border"
               }`}
             >
               {f}
             </button>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       {/* Aspect ratio */}
-      <div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+      <fieldset>
+        <legend className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500">
           <Ratio className="h-3 w-3" /> Aspect ratio
-        </label>
+        </legend>
         <div className="flex flex-wrap gap-1.5">
           {ASPECT_RATIOS.map((ar) => (
             <button
               key={ar.value}
               onClick={() => setAspectRatio(ar.value)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`focus-ring rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
                 aspectRatio === ar.value
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                  ? "bg-accent text-[#0c0c0e]"
+                  : "bg-surface-overlay text-zinc-500 hover:text-zinc-300 hover:bg-border"
               }`}
             >
               {ar.label}
             </button>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       {/* Captions */}
-      <div className="space-y-2">
-        <label className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+      <div className="space-y-2.5">
+        <label className="flex items-center justify-between cursor-pointer group">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 group-hover:text-zinc-400 transition-colors">
             <Type className="h-3 w-3" /> Captions
           </span>
           <button
             onClick={() => setAddCaptions((v) => !v)}
-            className={`relative h-5 w-9 rounded-full transition-colors ${
-              addCaptions ? "bg-emerald-500" : "bg-slate-600"
+            role="switch"
+            aria-checked={addCaptions}
+            className={`focus-ring relative h-5 w-9 rounded-full transition-colors duration-200 ${
+              addCaptions ? "bg-accent" : "bg-border-active"
             }`}
           >
             <span
-              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-200 ${
                 addCaptions ? "left-[18px]" : "left-0.5"
               }`}
             />
           </button>
         </label>
         {addCaptions && (
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 animate-fade-in">
             {CAPTION_STYLES.map((s) => (
               <button
                 key={s}
                 onClick={() => setCaptionStyle(s)}
-                className={`rounded-lg px-2.5 py-1 text-[11px] capitalize transition-colors ${
+                className={`focus-ring rounded-lg px-2.5 py-1 text-[11px] font-medium capitalize transition-all duration-200 ${
                   captionStyle === s
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                    ? "bg-accent text-[#0c0c0e]"
+                    : "bg-surface-overlay text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {s}
@@ -142,11 +146,11 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
 
       {/* Quality (CRF) */}
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <div className="flex items-center justify-between mb-2">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
             <Gauge className="h-3 w-3" /> Quality (CRF)
           </span>
-          <span className="font-mono text-xs text-slate-400">{crf}</span>
+          <span className="font-mono text-xs tabular-nums text-zinc-400">{crf}</span>
         </div>
         <input
           type="range"
@@ -154,9 +158,10 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
           max={35}
           value={crf}
           onChange={(e) => setCrf(Number(e.target.value))}
-          className="w-full accent-emerald-500"
+          className="w-full accent-accent"
+          aria-label="Video quality CRF value"
         />
-        <div className="flex justify-between text-[10px] text-slate-500">
+        <div className="flex justify-between mt-1 text-[10px] text-zinc-600">
           <span>Higher quality</span>
           <span>Smaller file</span>
         </div>
@@ -164,9 +169,9 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
 
       {/* Max width */}
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-slate-400">Max width</span>
-          <span className="font-mono text-xs text-slate-400">{maxWidth}px</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-zinc-500">Max width</span>
+          <span className="font-mono text-xs tabular-nums text-zinc-400">{maxWidth}px</span>
         </div>
         <input
           type="range"
@@ -175,18 +180,21 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
           step={160}
           value={maxWidth}
           onChange={(e) => setMaxWidth(Number(e.target.value))}
-          className="w-full accent-emerald-500"
+          className="w-full accent-accent"
+          aria-label="Maximum output width in pixels"
         />
       </div>
 
-      {/* Export buttons */}
-      <div className="flex gap-2 pt-1">
+      {/* Export button */}
+      <div className="pt-1">
         <button
           onClick={() => doExport(selectedClipIds)}
           disabled={exportMut.isPending || selectedClipIds.length === 0}
-          className="flex-1 rounded-lg bg-emerald-600 py-2.5 text-sm font-medium text-white
-                     hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed
-                     transition-colors flex items-center justify-center gap-2"
+          className="focus-ring w-full rounded-xl bg-accent py-3 text-sm font-semibold text-[#0c0c0e]
+                     hover:bg-accent-dim active:scale-[0.98]
+                     disabled:opacity-30 disabled:cursor-not-allowed
+                     transition-all duration-200 flex items-center justify-center gap-2
+                     shadow-glow"
         >
           {exportMut.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -194,16 +202,16 @@ export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
             <Download className="h-4 w-4" />
           )}
           {selectedSceneIds.size > 0
-            ? `Export Selected (${selectedClipIds.length})`
-            : "Export All"}
+            ? `Export selected (${selectedClipIds.length})`
+            : "Export all"}
         </button>
       </div>
 
       {exportMut.error && (
-        <p className="text-xs text-red-400">
+        <p className="text-xs text-red-400 animate-fade-in" role="alert">
           {(exportMut.error as Error).message}
         </p>
       )}
-    </div>
+    </section>
   );
 }

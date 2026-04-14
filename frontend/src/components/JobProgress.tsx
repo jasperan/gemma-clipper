@@ -1,4 +1,4 @@
-import { Loader2, Download, Clapperboard, Brain, Clock } from "lucide-react";
+import { Download, Clapperboard, Brain, Clock } from "lucide-react";
 import type { JobStatus } from "../api/client";
 
 interface Props {
@@ -40,36 +40,51 @@ export default function JobProgress({ status, progress, error }: Props) {
   const pct = Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-6">
+    <div className="rounded-2xl border border-border bg-surface-raised p-6 shadow-card" role="status" aria-live="polite">
       {error ? (
         <div className="text-center">
-          <p className="text-sm font-medium text-red-400">Error</p>
-          <p className="mt-1 text-sm text-red-300">{error}</p>
+          <p className="text-sm font-semibold text-red-400">Error</p>
+          <p className="mt-1.5 text-sm text-red-300/80">{error}</p>
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-3 text-emerald-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Animated phase icon */}
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-muted text-accent">
               {phase.icon}
-              <span className="text-sm font-semibold">{phase.label}</span>
-            </span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-200">{phase.label}</p>
+              <p className="text-xs text-zinc-500">{phase.description}</p>
+            </div>
           </div>
 
-          <p className="mt-2 text-sm text-slate-400">{phase.description}</p>
-
           {/* Progress bar */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-slate-500">Progress</span>
-              <span className="font-mono text-xs text-slate-400">{pct}%</span>
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-zinc-500">Progress</span>
+              <span className="font-mono text-xs tabular-nums text-zinc-400">{pct}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-overlay">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
-                style={{ width: `${pct}%` }}
+                className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
+                style={{
+                  width: `${pct}%`,
+                  boxShadow: pct > 0 ? "0 0 12px rgba(52, 211, 153, 0.3)" : "none",
+                }}
               />
             </div>
+          </div>
+
+          {/* Skeleton preview: shows expected layout shape */}
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2 animate-pulse" style={{ animationDelay: `${i * 150}ms` }}>
+                <div className="aspect-video rounded-lg bg-surface-overlay" />
+                <div className="h-2 w-3/4 rounded bg-surface-overlay" />
+                <div className="h-2 w-1/2 rounded bg-surface-overlay" />
+              </div>
+            ))}
           </div>
         </>
       )}

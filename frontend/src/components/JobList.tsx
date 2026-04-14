@@ -8,12 +8,12 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<JobStatus, string> = {
-  pending: "bg-slate-500",
-  downloading: "bg-blue-500",
-  processing: "bg-amber-500",
-  analyzing: "bg-purple-500",
-  complete: "bg-emerald-500",
-  failed: "bg-red-500",
+  pending: "bg-zinc-500",
+  downloading: "bg-blue-400",
+  processing: "bg-amber-400",
+  analyzing: "bg-violet-400",
+  complete: "bg-accent",
+  failed: "bg-red-400",
 };
 
 const STATUS_LABELS: Record<JobStatus, string> = {
@@ -46,14 +46,14 @@ export default function JobList({ selectedJobId, onSelect }: Props) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+        <Loader2 className="h-5 w-5 animate-spin text-zinc-600" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <p className="px-3 py-6 text-center text-sm text-slate-500">
+      <p className="px-3 py-6 text-center text-sm text-zinc-500" role="alert">
         Could not load jobs
       </p>
     );
@@ -61,7 +61,7 @@ export default function JobList({ selectedJobId, onSelect }: Props) {
 
   if (!jobs || jobs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+      <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
         <Film className="mb-2 h-8 w-8" />
         <p className="text-sm">No jobs yet</p>
       </div>
@@ -69,47 +69,47 @@ export default function JobList({ selectedJobId, onSelect }: Props) {
   }
 
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-0.5" role="listbox" aria-label="Processing jobs">
       {jobs.map((job) => {
         const active = job.id === selectedJobId;
         const isRunning = ["pending", "downloading", "processing", "analyzing"].includes(job.status);
 
         return (
-          <li key={job.id}>
+          <li key={job.id} role="option" aria-selected={active}>
             <button
               onClick={() => onSelect(job.id)}
-              className={`group w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+              className={`focus-ring group w-full rounded-lg px-3 py-2.5 text-left transition-all duration-200 ${
                 active
-                  ? "bg-slate-700/80"
-                  : "hover:bg-slate-800/60"
+                  ? "bg-surface-overlay shadow-card"
+                  : "hover:bg-surface-overlay/50"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-200">
+                  <p className="truncate text-sm font-medium text-zinc-200">
                     {job.source_name || job.id.slice(0, 8)}
                   </p>
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex items-center gap-2.5">
                     <span className="flex items-center gap-1.5">
                       <span
                         className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_COLORS[job.status]} ${
-                          isRunning ? "animate-pulse" : ""
+                          isRunning ? "animate-pulse-slow" : ""
                         }`}
                       />
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-zinc-500">
                         {STATUS_LABELS[job.status]}
                       </span>
                     </span>
                     {job.clips_generated > 0 && (
-                      <span className="text-xs text-slate-500">
+                      <span className="font-mono text-xs tabular-nums text-zinc-600">
                         {job.clips_generated} clip{job.clips_generated !== 1 ? "s" : ""}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-[10px] text-slate-500">
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <span className="font-mono text-[10px] tabular-nums text-zinc-600">
                     {timeAgo(job.created_at)}
                   </span>
                   <button
@@ -119,7 +119,8 @@ export default function JobList({ selectedJobId, onSelect }: Props) {
                         deleteMut.mutate(job.id);
                       }
                     }}
-                    className="rounded p-1 text-slate-600 opacity-0 transition-opacity hover:bg-slate-700 hover:text-red-400 group-hover:opacity-100"
+                    className="focus-ring rounded-md p-1 text-zinc-700 opacity-0 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100 active:scale-90"
+                    aria-label={`Delete job ${job.source_name || job.id.slice(0, 8)}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
