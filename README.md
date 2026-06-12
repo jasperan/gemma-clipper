@@ -37,7 +37,7 @@
 Turn any video into its best clips. Feed it an MP4 or YouTube URL, and Gemma 4 figures out which parts are worth keeping.
 
 1. **Ingests** your video (local file or YouTube URL via yt-dlp)
-2. **Detects scenes** using ffmpeg's scene filter + keyframe analysis
+2. **Detects scenes** using ffmpeg's scene-change filter
 3. **Analyzes each segment** with Gemma 4 (4B multimodal, served locally via vLLM)
 4. **Ranks scenes** by engagement: energy, speech content, visual variety, emotional peaks
 5. **Exports clips** in your choice of format, aspect ratio, and quality
@@ -48,11 +48,9 @@ You get two things: a ranked list of every scene (so you can pick manually) and 
 
 - **Scene detection** with configurable sensitivity
 - **AI-powered ranking** (Gemma 4 scores each segment for interest/engagement)
-- **Auto-captions** via faster-whisper, with 3 burn-in styles
-- **Silence removal** and jump cuts
+- **Auto-captions** via faster-whisper, with 3 burn-in styles (`default`/`bold`/`minimal`)
 - **Short-form export** (9:16 center-crop for TikTok/Reels/Shorts)
 - **Multiple output formats**: MP4, WebM, GIF
-- **YouTube chapters** awareness (if the video has chapters, they're used as scene boundaries)
 - Both a **CLI** and a **Web UI**
 
 ## Requirements
@@ -67,10 +65,11 @@ You get two things: a ranked list of every scene (so you can pick manually) and 
 ### Option 1: Local install
 
 ```bash
-conda create -n gemma-clipper python=3.12
-conda activate gemma-clipper
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
+
+Run commands with `uv run` (e.g. `uv run gemma-clipper analyze ...`), or activate the
+environment with `source .venv/bin/activate` first.
 
 Start vLLM serving Gemma 4 (in a separate terminal):
 

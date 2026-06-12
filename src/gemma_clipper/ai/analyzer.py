@@ -12,7 +12,6 @@ from gemma_clipper.ai.gemma_client import GemmaClient, extract_json
 from gemma_clipper.ai.prompts import (
     HIGHLIGHT_DETECTION_PROMPT,
     SCENE_ANALYSIS_PROMPT,
-    format_prompt,
 )
 from gemma_clipper.core.video import extract_segment
 
@@ -66,8 +65,7 @@ async def analyze_chunk(
     """Send one chunk to Gemma for scene analysis and optional highlight detection."""
     video_bytes = chunk_path.read_bytes()
 
-    highlight_prompt = format_prompt(
-        HIGHLIGHT_DETECTION_PROMPT,
+    highlight_prompt = HIGHLIGHT_DETECTION_PROMPT.format(
         total_duration=total_duration,
         chunk_index=chunk_index + 1,
         total_chunks=total_chunks,

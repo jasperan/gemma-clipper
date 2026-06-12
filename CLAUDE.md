@@ -15,9 +15,7 @@ AI-powered video clipping tool using Gemma 4 multimodal (4B) served locally via 
 ## Environment Setup
 
 ```bash
-conda create -n gemma-clipper python=3.12
-conda activate gemma-clipper
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 System dependency: `ffmpeg` must be installed and on PATH.
@@ -28,10 +26,10 @@ HuggingFace token needed for model download: `export HF_TOKEN=your_token_here`
 
 ```bash
 # Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Lint
-ruff check src/
+uv run ruff check src/
 
 # Start vLLM (separate terminal, ~6GB VRAM)
 vllm serve google/gemma-4-E4B-it \

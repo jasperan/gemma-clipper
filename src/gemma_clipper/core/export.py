@@ -81,11 +81,6 @@ def _build_vf(opts: ExportOptions, duration: float) -> str:
     return ",".join(filters)
 
 
-async def _run_ffmpeg(cmd: list[str]) -> None:
-    """Execute an ffmpeg command, raising on failure."""
-    await run_cmd(*cmd)
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -123,7 +118,7 @@ async def export_clip(
         cmd += ["-c:a", "aac"]
     cmd.append(str(output))
 
-    await _run_ffmpeg(cmd)
+    await run_cmd(*cmd)
     return output
 
 
@@ -157,43 +152,6 @@ async def export_batch(
     return list(results)
 
 
-async def create_compilation(
-    clips: list[Path],
-    output: Path,
-    transition: str = "none",
-) -> Path:
-    """Concatenate multiple clip files into a single video.
-
-    *transition* is reserved for future use (crossfade, etc.).  Currently
-    only ``"none"`` (hard cut) is supported.
-    """
-    if not clips:
-        raise ValueError("No clips provided for compilation.")
-
-    # Build a concat demuxer file.
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".txt", delete=False, prefix="gclipper_concat_"
-    ) as f:
-        for clip in clips:
-            f.write(f"file '{clip}'\n")
-        concat_path = f.name
-
-    try:
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", concat_path,
-            "-c", "copy",
-            str(output),
-        ]
-        await _run_ffmpeg(cmd)
-    finally:
-        Path(concat_path).unlink(missing_ok=True)
-
-    return output
-
-
 # ---------------------------------------------------------------------------
 # GIF export (palette-based for quality)
 # ---------------------------------------------------------------------------
@@ -220,7 +178,7 @@ async def _export_gif(
             "-vf", f"{vf},palettegen=stats_mode=diff",
             str(palette),
         ]
-        await _run_ffmpeg(cmd_palette)
+        await run_cmd(*cmd_palette)
 
         # Pass 2: render GIF using palette.
         cmd_gif = [
@@ -232,7 +190,7 @@ async def _export_gif(
             "-lavfi", f"{vf}[v];[v][1:v]paletteuse=dither=bayer:bayer_scale=5",
             str(output),
         ]
-        await _run_ffmpeg(cmd_gif)
+        await run_cmd(*cmd_gif)
     finally:
         palette.unlink(missing_ok=True)
 

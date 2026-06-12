@@ -86,57 +86,6 @@ async def detect_speech_regions(
     return regions
 
 
-async def remove_silence(
-    source: Path,
-    output: Path,
-    threshold_db: float = -30.0,
-    min_duration: float = 0.5,
-    padding: float = 0.1,
-) -> Path:
-    """Remove silent segments, concatenating the remaining speech regions.
-
-    A small *padding* (seconds) is kept around each speech region to avoid
-    hard cuts.
-    """
-    speech = await detect_speech_regions(source, threshold_db, min_duration)
-    if not speech:
-        raise ValueError("No speech regions detected; the entire file appears silent.")
-
-    meta = await probe_video(source)
-    total = meta.duration
-
-    # Build a complex filtergraph that trims and concatenates speech segments.
-    parts_v: list[str] = []
-    parts_a: list[str] = []
-    for idx, region in enumerate(speech):
-        start = max(0.0, region.start_time - padding)
-        end = min(total, region.end_time + padding)
-        parts_v.append(
-            f"[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{idx}]"
-        )
-        parts_a.append(
-            f"[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{idx}]"
-        )
-
-    n = len(speech)
-    concat_inputs = "".join(f"[v{i}][a{i}]" for i in range(n))
-    filter_complex = ";".join(parts_v + parts_a) + f";{concat_inputs}concat=n={n}:v=1:a=1[outv][outa]"
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", str(source),
-        "-filter_complex", filter_complex,
-        "-map", "[outv]",
-        "-map", "[outa]",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-c:a", "aac",
-        str(output),
-    ]
-    await run_cmd(*cmd)
-    return output
-
-
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------

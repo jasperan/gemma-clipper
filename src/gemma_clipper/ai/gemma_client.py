@@ -61,27 +61,6 @@ class GemmaClient:
         ]
         return await self._chat_completion(messages, timeout=_VIDEO_TIMEOUT)
 
-    async def analyze_image(self, image_bytes: bytes, prompt: str) -> str:
-        """Send a base64-encoded image and return the response text."""
-        b64 = base64.b64encode(image_bytes).decode()
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            },
-        ]
-        return await self._chat_completion(messages, timeout=_VIDEO_TIMEOUT)
-
-    async def chat(self, messages: list[dict]) -> str:
-        """Plain text chat completion."""
-        return await self._chat_completion(messages, timeout=_TEXT_TIMEOUT)
-
     async def health_check(self) -> bool:
         """Return True if vLLM is responding."""
         try:

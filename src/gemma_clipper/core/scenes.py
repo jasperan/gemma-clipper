@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from gemma_clipper.core.video import get_keyframes, probe_video
+from gemma_clipper.core.video import probe_video
 
 logger = logging.getLogger(__name__)
 
@@ -61,41 +61,6 @@ async def detect_scenes(
     return await _boundaries_from_timestamps(timestamps, video_path)
 
 
-async def detect_scenes_with_keyframes(
-    video_path: Path,
-    threshold: float = 0.3,
-) -> list[SceneBoundary]:
-    """Combine scene-filter detection with keyframe analysis.
-
-    Keyframe positions from the codec are merged with scene-change timestamps
-    to produce more accurate boundaries (snapped to the nearest keyframe).
-    """
-    scene_boundaries, keyframe_ts = await asyncio.gather(
-        detect_scenes(video_path, threshold),
-        get_keyframes(video_path),
-    )
-
-    if not keyframe_ts or not scene_boundaries:
-        return scene_boundaries
-
-    # Snap each scene boundary start/end to the nearest keyframe.
-    snapped: list[SceneBoundary] = []
-    for sb in scene_boundaries:
-        start = _nearest(keyframe_ts, sb.start_time)
-        end = _nearest(keyframe_ts, sb.end_time)
-        if end <= start:
-            end = sb.end_time
-        snapped.append(
-            SceneBoundary(
-                start_time=start,
-                end_time=end,
-                duration=round(end - start, 3),
-                score=sb.score,
-            )
-        )
-    return snapped
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -142,16 +107,3 @@ async def _boundaries_from_timestamps(
             )
 
     return boundaries
-
-
-def _nearest(sorted_values: list[float], target: float) -> float:
-    """Return the value in *sorted_values* closest to *target* (linear scan)."""
-    best = sorted_values[0]
-    best_dist = abs(best - target)
-    for v in sorted_values[1:]:
-        d = abs(v - target)
-        if d < best_dist:
-            best, best_dist = v, d
-        elif d > best_dist:
-            break  # sorted, so distance only grows from here
-    return best

@@ -116,10 +116,8 @@ async def _analyze_impl(
     from gemma_clipper.ai.gemma_client import GemmaClient
     from gemma_clipper.ai.ranker import rank_scenes, select_best_clips
     from gemma_clipper.core.scenes import SceneBoundary, detect_scenes
-    from gemma_clipper.core.silence import detect_silence
     from gemma_clipper.core.video import probe_video
     from gemma_clipper.core.youtube import download_video
-    from gemma_clipper.db import init_db
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -160,16 +158,7 @@ async def _analyze_impl(
             console.print(Panel("[yellow]No scene changes detected. Try lowering --threshold.[/yellow]", title="Warning"))
             raise typer.Exit(code=0)
 
-        # -- Stage 4: silence detection ------------------------------------
-        task_silence = progress.add_task("Detecting silence...", total=1)
-        silence_regions = await detect_silence(
-            video_path,
-            threshold_db=settings.silence_threshold_db,
-            min_duration=settings.silence_min_duration,
-        )
-        progress.update(task_silence, completed=1, description=f"Silence: {len(silence_regions)} regions")
-
-        # -- Stage 5: AI analysis ------------------------------------------
+        # -- Stage 4: AI analysis ------------------------------------------
         task_ai = progress.add_task("AI analysis (Gemma 4)...", total=len(scene_boundaries))
 
         scenes_as_dicts = [
@@ -191,12 +180,12 @@ async def _analyze_impl(
             )
         progress.update(task_ai, completed=len(scene_boundaries), description="AI analysis complete")
 
-        # -- Stage 6: ranking ----------------------------------------------
+        # -- Stage 5: ranking ----------------------------------------------
         task_rank = progress.add_task("Ranking scenes...", total=1)
         ranked = rank_scenes(analysis.chunks)
         progress.update(task_rank, completed=1, description=f"Ranked {len(ranked)} scenes")
 
-        # -- Stage 7: clip selection (optional) ----------------------------
+        # -- Stage 6: clip selection (optional) ----------------------------
         clips = []
         if not no_auto_clip:
             task_clip = progress.add_task("Selecting clips...", total=1)
@@ -283,9 +272,6 @@ async def _analyze_impl(
 
     results_path = output_dir / "results.json"
     results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-
-    # -- Init DB -------------------------------------------------------
-    await init_db()
 
     console.print()
     console.print(Panel(

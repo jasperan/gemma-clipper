@@ -3,34 +3,12 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import yt_dlp
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Chapter:
-    """A single chapter inside a YouTube video."""
-
-    title: str
-    start_time: float
-    end_time: float
-
-
-@dataclass
-class YouTubeInfo:
-    """Metadata about a YouTube video (no download)."""
-
-    title: str
-    duration: float
-    description: str
-    thumbnail_url: str | None
-    channel: str
-    upload_date: str
-    chapters: list[Chapter] = field(default_factory=list)
 
 
 @dataclass
@@ -42,20 +20,6 @@ class DownloadResult:
     duration: float
     description: str
     thumbnail_url: str | None
-
-
-def _parse_chapters(info: dict) -> list[Chapter]:
-    """Extract chapter list from yt-dlp info dict."""
-    chapters: list[Chapter] = []
-    for ch in info.get("chapters") or []:
-        chapters.append(
-            Chapter(
-                title=ch.get("title", ""),
-                start_time=float(ch.get("start_time", 0)),
-                end_time=float(ch.get("end_time", 0)),
-            )
-        )
-    return chapters
 
 
 _cached_cookie_opts: dict | None = None
@@ -81,28 +45,6 @@ def _cookie_opts() -> dict:
             continue
     _cached_cookie_opts = {}
     return _cached_cookie_opts
-
-
-async def get_video_info(url: str) -> YouTubeInfo:
-    """Fetch video metadata without downloading."""
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        **_cookie_opts(),
-    }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info: dict = ydl.extract_info(url, download=False)  # type: ignore[assignment]
-
-    return YouTubeInfo(
-        title=info.get("title", ""),
-        duration=float(info.get("duration", 0)),
-        description=info.get("description", ""),
-        thumbnail_url=info.get("thumbnail"),
-        channel=info.get("channel", info.get("uploader", "")),
-        upload_date=info.get("upload_date", ""),
-        chapters=_parse_chapters(info),
-    )
 
 
 async def download_video(

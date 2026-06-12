@@ -20,7 +20,7 @@ const ACTIVE_STATUSES = new Set([
   "analyzing",
 ]);
 
-function jobIsActive(job: JobResponse | JobDetail): boolean {
+export function jobIsActive(job: JobResponse | JobDetail): boolean {
   return ACTIVE_STATUSES.has(job.status);
 }
 

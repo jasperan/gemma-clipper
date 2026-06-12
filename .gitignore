@@ -43,6 +43,7 @@ content/
 # Project-specific
 uploads/
 output/
+test_output_e2e/
 *.mp4
 *.webm
 *.mkv

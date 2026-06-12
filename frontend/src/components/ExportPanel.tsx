@@ -16,7 +16,7 @@ const ASPECT_RATIOS = [
   { value: "9:16", label: "9:16" },
   { value: "1:1", label: "1:1" },
 ];
-const CAPTION_STYLES = ["default", "bold", "outline", "shadow"];
+const CAPTION_STYLES = ["default", "bold", "minimal"];
 
 export default function ExportPanel({ jobId, clips, selectedSceneIds }: Props) {
   const [format, setFormat] = useState<string>("mp4");

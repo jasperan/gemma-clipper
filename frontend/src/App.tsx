@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   Scissors,
   Wifi,
@@ -9,7 +9,7 @@ import {
   List,
   AlertTriangle,
 } from "lucide-react";
-import { useHealth, useJob } from "./hooks/useJobs";
+import { useHealth, useJob, jobIsActive } from "./hooks/useJobs";
 import VideoUpload from "./components/VideoUpload";
 import JobList from "./components/JobList";
 import JobProgress from "./components/JobProgress";
@@ -30,15 +30,6 @@ function formatDuration(seconds: number | null): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// Keep formatBytes available for future use (file size display)
-void formatBytes;
-
 export default function App() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(
@@ -50,14 +41,10 @@ export default function App() {
   const job = useJob(selectedJobId);
 
   const jobData = job.data;
-  const isActive =
-    jobData &&
-    ["pending", "downloading", "processing", "analyzing"].includes(
-      jobData.status,
-    );
+  const isActive = jobData ? jobIsActive(jobData) : false;
 
-  const scenes = useMemo(() => jobData?.scenes ?? [], [jobData]);
-  const clips = useMemo(() => jobData?.clips ?? [], [jobData]);
+  const scenes = jobData?.scenes ?? [];
+  const clips = jobData?.clips ?? [];
 
   const toggleScene = (id: string) => {
     setSelectedSceneIds((prev) => {

@@ -38,14 +38,6 @@ class SourceType(str, enum.Enum):
 # --- Requests ---
 
 
-class VideoUploadRequest(BaseModel):
-    """Metadata sent alongside a file upload."""
-    auto_clip: bool = True
-    max_clips: int = Field(default=10, ge=1, le=50)
-    min_clip_duration: float = Field(default=5.0, ge=1.0)
-    max_clip_duration: float = Field(default=60.0, le=300.0)
-
-
 class YouTubeRequest(BaseModel):
     url: str
     auto_clip: bool = True
